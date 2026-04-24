@@ -56,7 +56,7 @@ android {
     buildFeatures {
         dataBinding true
         viewBinding true
-        buildConfig = true // Enabled as per the deprecation warning
+        buildConfig = true 
     }
 
     kotlinOptions {
@@ -73,7 +73,6 @@ android {
             resValue "string", "app_name", "_DEBUG-Native Alpha"
         }
 
-        // APK Renaming Logic
         applicationVariants.all { variant ->
             variant.outputs.each { output ->
                 project.ext { appName = 'NativeAlpha' }
@@ -101,7 +100,7 @@ android {
 
 repositories {
     google()
-    central()
+    mavenCentral() // Fixed: changed 'central()' to 'mavenCentral()'
 }
 
 dependencies {
@@ -204,7 +203,6 @@ preBuild.dependsOn extendAndroidManifest
         from "${projectDir}/src/main/java/com/cylonid/nativealpha/WebViewActivity.java"
         into "${projectDir}/src/main/java/com/cylonid/nativealpha/"
 
-        // Use rename closure to ensure Gradle knows this task owns only ONE specific file
         rename { String fileName ->
             if (fileName == "WebViewActivity.java") {
                 return "__WebViewActivity_${i}.java"
@@ -216,7 +214,6 @@ preBuild.dependsOn extendAndroidManifest
             line.replaceAll("class WebViewActivity", "class __WebViewActivity_${i}")
         }
         
-        // Prevent implicit dependency collisions in the same directory
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }
     
