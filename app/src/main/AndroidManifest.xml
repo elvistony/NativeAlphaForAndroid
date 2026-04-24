@@ -49,6 +49,7 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|uiMode|keyboard|keyboardHidden|navigation"
             android:launchMode="standard"
             android:documentLaunchMode="intoExisting"
+            android:exported="true"
             >
 
             <!-- // INSERT START -->
