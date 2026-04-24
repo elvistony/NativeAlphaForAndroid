@@ -161,10 +161,10 @@ dependencies {
 
 
 }
-def renameManifest = tasks.register("renameManifest") {
-    ant.move(file: 'src/main/AndroidManifest.xml', tofile:'src/main/AndroidManifest_original.xml')
-}
-preBuild.dependsOn renameManifest
+// def renameManifest = tasks.register("renameManifest") {
+//     ant.move(file: 'src/main/AndroidManifest.xml', tofile:'src/main/AndroidManifest_original.xml')
+// }
+// preBuild.dependsOn renameManifest
 
 // int NUM_OF_CONTAINERS = 8
 
