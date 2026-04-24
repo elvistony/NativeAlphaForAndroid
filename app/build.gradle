@@ -76,7 +76,6 @@ android {
         applicationVariants.all { variant ->
             variant.outputs.each { output ->
                 project.ext { appName = 'NativeAlpha' }
-                def formattedDate = new Date().format('yyyy-MM-dd-HH-mm-ss')
                 def newName = output.outputFile.name
                 newName = newName.replace("app-", "$project.ext.appName-")
                 newName = newName.replace("-release", "-release-" + "v" + variant.versionName)
@@ -86,9 +85,7 @@ android {
     }
 
     testOptions {
-        unitTests {
-            includeAndroidResources = true
-        }
+        unitTests.includeAndroidResources = true
         execution 'ANDROIDX_TEST_ORCHESTRATOR'
     }
 
@@ -100,12 +97,11 @@ android {
 
 repositories {
     google()
-    mavenCentral() // Fixed: changed 'central()' to 'mavenCentral()'
+    mavenCentral() 
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-
     implementation 'com.mikhaellopez:circularprogressbar:3.1.0'
     implementation 'org.jsoup:jsoup:1.14.1'
     implementation 'com.github.ihimanshurawat:Hasher:1.2'
@@ -151,22 +147,20 @@ dependencies {
 
 def NUM_OF_CONTAINERS = 8
 
-// 1. Task to move current Manifest to the template location
+// 1. Task to move current Manifest to template
 def renameManifestTask = tasks.register("renameManifest") {
     doLast {
         def manifestFile = file("${projectDir}/src/main/AndroidManifest.xml")
         def originalFile = file("${projectDir}/src/main/AndroidManifest_original.xml")
-        
         if (manifestFile.exists()) {
             ant.move(file: manifestFile, tofile: originalFile)
         }
     }
 }
 
-// 2. Task to generate the expanded Manifest with 8 activities
+// 2. Task to generate expanded Manifest
 def extendAndroidManifest = tasks.register("extendAndroidManifest", Copy) {
     dependsOn renameManifestTask
-    
     from "${projectDir}/src/main/AndroidManifest_original.xml"
     into "${projectDir}/src/main"
 
@@ -193,29 +187,25 @@ def extendAndroidManifest = tasks.register("extendAndroidManifest", Copy) {
     rename { String fileName -> fileName.replace("_original", "") }
 }
 
-preBuild.dependsOn extendAndroidManifest
-
-// 3. Loop to generate the 8 Java class files
-(0..<NUM_OF_CONTAINERS).each { int i ->
-    def classTask = tasks.register("createWebViewclass${i}", Copy) {
-        dependsOn extendAndroidManifest
-        
-        from "${projectDir}/src/main/java/com/cylonid/nativealpha/WebViewActivity.java"
-        into "${projectDir}/src/main/java/com/cylonid/nativealpha/"
-
-        rename { String fileName ->
-            if (fileName == "WebViewActivity.java") {
-                return "__WebViewActivity_${i}.java"
-            }
-            return fileName
-        }
-
-        filter { String line ->
-            line.replaceAll("class WebViewActivity", "class __WebViewActivity_${i}")
-        }
-        
-        duplicatesStrategy = DuplicatesStrategy.INCLUDE
-    }
+// 3. Unified Task to generate all 8 Java classes (Prevents overlapping outputs)
+def generateWebViewClasses = tasks.register("generateWebViewClasses") {
+    dependsOn extendAndroidManifest
     
-    preBuild.dependsOn classTask
+    def sourceFile = file("${projectDir}/src/main/java/com/cylonid/nativealpha/WebViewActivity.java")
+    def outputDir = file("${projectDir}/src/main/java/com/cylonid/nativealpha/")
+
+    inputs.file sourceFile
+    outputs.dir outputDir
+
+    doLast {
+        (0..<NUM_OF_CONTAINERS).each { i ->
+            def targetFile = file("${outputDir}/__WebViewActivity_${i}.java")
+            String content = sourceFile.text
+            content = content.replaceAll("class WebViewActivity", "class __WebViewActivity_${i}")
+            targetFile.text = content
+        }
+    }
 }
+
+// Link to build lifecycle
+preBuild.dependsOn generateWebViewClasses
