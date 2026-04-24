@@ -119,9 +119,28 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
     private AdblockProviderApiHelper adblockProviderApiHelper;
     private AdblockLifecycleHelper adblockLifecycleHelper;
 
+    private void loadUrlDirect(String url) {
+        WebView webView = findViewById(R.id.webview); // adjust ID
+
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.loadUrl(url);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // INSERT START
+        Intent intent = getIntent();
+
+        if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
+            String extraUrl = intent.getStringExtra("url");
+            if (extraUrl != null) {
+                loadUrlDirect(extraUrl);
+                return;
+            }
+        }
+        // INSERT END
 
         adblockLifecycleHelper = new AdblockLifecycleHelper(this);
         adblockLifecycleHelper.trySyncOperation(() -> adFilter = AdFilter.Companion.get(getApplicationContext()));
