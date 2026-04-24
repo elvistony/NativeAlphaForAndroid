@@ -166,18 +166,87 @@ def renameManifest = tasks.register("renameManifest") {
 }
 preBuild.dependsOn renameManifest
 
-int NUM_OF_CONTAINERS = 8
+// int NUM_OF_CONTAINERS = 8
 
-def generateWebViewActivities = tasks.register( "extendAndroidManifest", Copy ) {
-    dependsOn(renameManifest)
-    from 'src/main/AndroidManifest_original.xml'
-    into 'src/main'
+// def generateWebViewActivities = tasks.register( "extendAndroidManifest", Copy ) {
+//     dependsOn(renameManifest)
+//     from 'src/main/AndroidManifest_original.xml'
+//     into 'src/main'
 
-    String placeholder = "<!--Placeholder-->"
+//     String placeholder = "<!--Placeholder-->"
+//     String replacement = ""
+//     for (int i = 0; i < NUM_OF_CONTAINERS; i++) {
+//         replacement += "        <activity\n" +
+//                 "            android:name=\".__WebViewActivity_" + String.valueOf(i) + "\"\n" +
+//                 "            android:label=\"@string/app_name\"\n" +
+//                 "            android:parentActivityName=\".MainActivity\"\n" +
+//                 "            android:windowSoftInputMode=\"adjustResize\"\n" +
+//                 "            android:icon=\"@mipmap/native_alpha\"\n" +
+//                 "            android:roundIcon=\"@mipmap/native_alpha\"\n" +
+//                 "            android:theme=\"@style/AppTheme.WebView\"\n" +
+//                 "            android:configChanges=\"orientation|screenSize|smallestScreenSize|density|screenLayout|uiMode|keyboard|keyboardHidden|navigation\"\n" +
+//                 "            android:launchMode=\"standard\"\n" +
+//                 "            android:process=\":web_sandbox_" + String.valueOf(i) + "\"\n" +
+//                 "            android:documentLaunchMode=\"intoExisting\"\n" +
+//                 "         />\n"
+//     }
+
+
+//     filter {
+//         String line -> line.replaceAll(placeholder, replacement)
+//     }
+//     rename { String fileName ->
+//         fileName.replace("_original", "")
+//     }
+// }
+// preBuild.dependsOn generateWebViewActivities
+
+// (0..<NUM_OF_CONTAINERS).each { int i ->
+//     TaskProvider<Copy> trTask = tasks.register("createWebViewclass${i}", Copy) {
+//         from 'src/main/java/com/cylonid/nativealpha/WebViewActivity.java'
+//         into "src/main/java/com/cylonid/nativealpha/__WebViewActivity_${i}"
+//         dependsOn(generateWebViewActivities)
+//         mustRunAfter(i == 0 ? [] : tasks.getByName("createWebViewclass${i-1}"))
+
+//         filter { String line ->
+//             line.replaceAll("WebViewActivity", "__WebViewActivity_${i}")
+//         }
+
+//         rename { String fileName ->
+//             fileName.replace("WebViewActivity.java", "__WebViewActivity_${i}.java")
+//         }
+//     }
+
+//     preBuild.dependsOn(trTask)
+// }
+
+def NUM_OF_CONTAINERS = 8
+
+// 1. Define the rename task with absolute paths
+def renameManifest = tasks.register("renameManifest") {
+    doLast {
+        def manifestFile = file("${projectDir}/src/main/AndroidManifest.xml")
+        def originalFile = file("${projectDir}/src/main/AndroidManifest_original.xml")
+        
+        if (manifestFile.exists()) {
+            ant.move(file: manifestFile, tofile: originalFile)
+        }
+    }
+}
+
+// 2. Define the extension task
+def generateWebViewActivities = tasks.register("extendAndroidManifest", Copy) {
+    // Explicitly depend on the rename task
+    dependsOn renameManifest
+    
+    from "${projectDir}/src/main/AndroidManifest_original.xml"
+    into "${projectDir}/src/main"
+
+    String placeholder = ""
     String replacement = ""
     for (int i = 0; i < NUM_OF_CONTAINERS; i++) {
         replacement += "        <activity\n" +
-                "            android:name=\".__WebViewActivity_" + String.valueOf(i) + "\"\n" +
+                "            android:name=\".__WebViewActivity_" + i + "\"\n" +
                 "            android:label=\"@string/app_name\"\n" +
                 "            android:parentActivityName=\".MainActivity\"\n" +
                 "            android:windowSoftInputMode=\"adjustResize\"\n" +
@@ -186,36 +255,33 @@ def generateWebViewActivities = tasks.register( "extendAndroidManifest", Copy ) 
                 "            android:theme=\"@style/AppTheme.WebView\"\n" +
                 "            android:configChanges=\"orientation|screenSize|smallestScreenSize|density|screenLayout|uiMode|keyboard|keyboardHidden|navigation\"\n" +
                 "            android:launchMode=\"standard\"\n" +
-                "            android:process=\":web_sandbox_" + String.valueOf(i) + "\"\n" +
+                "            android:process=\":web_sandbox_" + i + "\"\n" +
                 "            android:documentLaunchMode=\"intoExisting\"\n" +
+                "            android:exported=\"false\"\n" + // ADDED THIS to fix the Android 12 error!
                 "         />\n"
     }
 
-
-    filter {
-        String line -> line.replaceAll(placeholder, replacement)
-    }
-    rename { String fileName ->
-        fileName.replace("_original", "")
-    }
+    filter { String line -> line.replaceAll(placeholder, replacement) }
+    rename { String fileName -> fileName.replace("_original", "") }
 }
+
+// 3. Link them to the lifecycle correctly
 preBuild.dependsOn generateWebViewActivities
 
+// 4. Update the class generation to use absolute paths
 (0..<NUM_OF_CONTAINERS).each { int i ->
-    TaskProvider<Copy> trTask = tasks.register("createWebViewclass${i}", Copy) {
-        from 'src/main/java/com/cylonid/nativealpha/WebViewActivity.java'
-        into "src/main/java/com/cylonid/nativealpha/__WebViewActivity_${i}"
-        dependsOn(generateWebViewActivities)
-        mustRunAfter(i == 0 ? [] : tasks.getByName("createWebViewclass${i-1}"))
+    tasks.register("createWebViewclass${i}", Copy) {
+        from "${projectDir}/src/main/java/com/cylonid/nativealpha/WebViewActivity.java"
+        into "${projectDir}/src/main/java/com/cylonid/nativealpha/" 
+        dependsOn generateWebViewActivities
 
         filter { String line ->
-            line.replaceAll("WebViewActivity", "__WebViewActivity_${i}")
+            line.replaceAll("class WebViewActivity", "class __WebViewActivity_${i}")
         }
 
         rename { String fileName ->
             fileName.replace("WebViewActivity.java", "__WebViewActivity_${i}.java")
         }
     }
-
-    preBuild.dependsOn(trTask)
+    preBuild.dependsOn "createWebViewclass${i}"
 }
