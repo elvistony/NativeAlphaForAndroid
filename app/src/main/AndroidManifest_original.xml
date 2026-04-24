@@ -51,8 +51,6 @@
             android:documentLaunchMode="intoExisting"
             android:exported="true"
             >
-
-            <!-- // INSERT START -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -62,7 +60,6 @@
                 <data android:scheme="http" />
                 <data android:scheme="https" />
             </intent-filter>
-            <!-- // INSERT END -->
 
         </activity>
  

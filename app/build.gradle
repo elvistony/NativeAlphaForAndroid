@@ -7,14 +7,25 @@ aboutLibraries {
     excludeFields = ["generated"]
 }
 
+//https://gist.github.com/shakalaca/6422811
 android {
-    namespace 'com.cylonid.nativealpha'
-    compileSdk 35
+     applicationVariants.all { variant ->
+         variant.assembleProvider.get().doLast {
+             delete fileTree('src/main/java/com/cylonid/nativealpha') {
+                 include '**/__WebViewActivity_*.java'
+             }
+             delete fileTree('src/main') {
+                 include '**/AndroidManifest.xml'
+             }
+             ant.move(file: 'src/main/AndroidManifest_original.xml', tofile:'src/main/AndroidManifest.xml')
+
+         }
+     }
 
     dependenciesInfo {
         includeInApk = false
     }
-
+    compileSdk 35
     splits {
         abi {
             enable true
@@ -23,7 +34,6 @@ android {
             universalApk true
         }
     }
-
     flavorDimensions "default"
     productFlavors {
         extended {
@@ -52,56 +62,66 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments clearPackageData: 'true'
     }
-
     buildFeatures {
         dataBinding true
         viewBinding true
-        buildConfig = true 
     }
-
     kotlinOptions {
         jvmTarget = '17'
     }
-
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            applicationIdSuffix = ".debug"
-            resValue "string", "app_name", "_DEBUG-Native Alpha"
+          applicationIdSuffix = ".debug"
+          resValue "string", "app_name", "_DEBUG-Native Alpha"
         }
+        applicationVariants.all {
+                // this method is use to rename your release apk only
+            variant ->
+                variant.outputs.each {
+                        // on below line we are setting a name to our apk
+                    output ->
+                        // on below line we are specifying our app name.
+                        project.ext { appName = 'NativeAlpha' }
+                        // on below line we are adding the formatted date to our apk file name.
+                        def formattedDate = new Date().format('yyyy-MM-dd-HH-mm-ss')
+                        // on below line we are creating a new name for our apk.
+                        def newName = output.outputFile.name
+                        // on below line we are replacing our previous name with our app name.
+                        newName = newName.replace("app-", "$project.ext.appName-")
+                        // on below line we are replacing -release with our formatted date.
+                        newName = newName.replace("-release", "-release-" + "v" + variant.versionName)
+                        // at last we are setting our apk name to it.
+                        output.outputFileName = newName
 
-        applicationVariants.all { variant ->
-            variant.outputs.each { output ->
-                project.ext { appName = 'NativeAlpha' }
-                def newName = output.outputFile.name
-                newName = newName.replace("app-", "$project.ext.appName-")
-                newName = newName.replace("-release", "-release-" + "v" + variant.versionName)
-                output.outputFileName = newName
-            }
+                }
         }
     }
-
     testOptions {
-        unitTests.includeAndroidResources = true
+        unitTests {
+            includeAndroidResources = true
+        }
         execution 'ANDROIDX_TEST_ORCHESTRATOR'
     }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-}
 
+    namespace 'com.cylonid.nativealpha'
+
+}
 repositories {
     google()
-    mavenCentral() 
+    mavenCentral()
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+
     implementation 'com.mikhaellopez:circularprogressbar:3.1.0'
     implementation 'org.jsoup:jsoup:1.14.1'
     implementation 'com.github.ihimanshurawat:Hasher:1.2'
@@ -111,14 +131,12 @@ dependencies {
     implementation 'io.github.medyo:android-about-page:2.0.0'
     implementation 'androidx.webkit:webkit:1.13.0'
     implementation 'com.jakewharton:process-phoenix:2.1.2'
-    
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.14.1'
     testImplementation 'org.json:json:20250107'
     testImplementation 'org.mockito:mockito-core:5.17.0'
     testImplementation 'org.mockito:mockito-android:5.17.0'
     testImplementation 'org.mockito.kotlin:mockito-kotlin:5.4.0'
-    
     androidTestImplementation 'org.mockito:mockito-android:5.17.0'
     androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.6.1'
     androidTestImplementation 'androidx.test.espresso:espresso-web:3.6.1'
@@ -127,7 +145,6 @@ dependencies {
     androidTestUtil 'androidx.test:orchestrator:1.5.1'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
-    
     implementation "com.mikepenz:aboutlibraries:11.6.3"
     implementation "com.mikepenz:aboutlibraries-core:11.6.3"
     implementation 'pub.devrel:easypermissions:3.0.0'
@@ -141,34 +158,26 @@ dependencies {
     implementation 'androidx.work:work-runtime:2.10.0'
     kapt "com.android.databinding:compiler:3.1.4"
     implementation 'com.google.android.material:material:1.12.0'
+
+
 }
-
-// --- CUSTOM GENERATION LOGIC ---
-
-def NUM_OF_CONTAINERS = 8
-
-// 1. Task to move current Manifest to template
-def renameManifestTask = tasks.register("renameManifest") {
-    doLast {
-        def manifestFile = file("${projectDir}/src/main/AndroidManifest.xml")
-        def originalFile = file("${projectDir}/src/main/AndroidManifest_original.xml")
-        if (manifestFile.exists()) {
-            ant.move(file: manifestFile, tofile: originalFile)
-        }
-    }
+def renameManifest = tasks.register("renameManifest") {
+    ant.move(file: 'src/main/AndroidManifest.xml', tofile:'src/main/AndroidManifest_original.xml')
 }
+preBuild.dependsOn renameManifest
 
-// 2. Task to generate expanded Manifest
-def extendAndroidManifest = tasks.register("extendAndroidManifest", Copy) {
-    dependsOn renameManifestTask
-    from "${projectDir}/src/main/AndroidManifest_original.xml"
-    into "${projectDir}/src/main"
+int NUM_OF_CONTAINERS = 8
 
-    String placeholder = ""
+def generateWebViewActivities = tasks.register( "extendAndroidManifest", Copy ) {
+    dependsOn(renameManifest)
+    from 'src/main/AndroidManifest_original.xml'
+    into 'src/main'
+
+    String placeholder = "<!--Placeholder-->"
     String replacement = ""
     for (int i = 0; i < NUM_OF_CONTAINERS; i++) {
         replacement += "        <activity\n" +
-                "            android:name=\".__WebViewActivity_" + i + "\"\n" +
+                "            android:name=\".__WebViewActivity_" + String.valueOf(i) + "\"\n" +
                 "            android:label=\"@string/app_name\"\n" +
                 "            android:parentActivityName=\".MainActivity\"\n" +
                 "            android:windowSoftInputMode=\"adjustResize\"\n" +
@@ -177,35 +186,36 @@ def extendAndroidManifest = tasks.register("extendAndroidManifest", Copy) {
                 "            android:theme=\"@style/AppTheme.WebView\"\n" +
                 "            android:configChanges=\"orientation|screenSize|smallestScreenSize|density|screenLayout|uiMode|keyboard|keyboardHidden|navigation\"\n" +
                 "            android:launchMode=\"standard\"\n" +
-                "            android:process=\":web_sandbox_" + i + "\"\n" +
+                "            android:process=\":web_sandbox_" + String.valueOf(i) + "\"\n" +
                 "            android:documentLaunchMode=\"intoExisting\"\n" +
-                "            android:exported=\"false\"\n" + 
                 "         />\n"
     }
 
-    filter { String line -> line.replaceAll(placeholder, replacement) }
-    rename { String fileName -> fileName.replace("_original", "") }
-}
 
-// 3. Unified Task to generate all 8 Java classes (Prevents overlapping outputs)
-def generateWebViewClasses = tasks.register("generateWebViewClasses") {
-    dependsOn extendAndroidManifest
-    
-    def sourceFile = file("${projectDir}/src/main/java/com/cylonid/nativealpha/WebViewActivity.java")
-    def outputDir = file("${projectDir}/src/main/java/com/cylonid/nativealpha/")
-
-    inputs.file sourceFile
-    outputs.dir outputDir
-
-    doLast {
-        (0..<NUM_OF_CONTAINERS).each { i ->
-            def targetFile = file("${outputDir}/__WebViewActivity_${i}.java")
-            String content = sourceFile.text
-            content = content.replaceAll("class WebViewActivity", "class __WebViewActivity_${i}")
-            targetFile.text = content
-        }
+    filter {
+        String line -> line.replaceAll(placeholder, replacement)
+    }
+    rename { String fileName ->
+        fileName.replace("_original", "")
     }
 }
+preBuild.dependsOn generateWebViewActivities
 
-// Link to build lifecycle
-preBuild.dependsOn generateWebViewClasses
+(0..<NUM_OF_CONTAINERS).each { int i ->
+    TaskProvider<Copy> trTask = tasks.register("createWebViewclass${i}", Copy) {
+        from 'src/main/java/com/cylonid/nativealpha/WebViewActivity.java'
+        into "src/main/java/com/cylonid/nativealpha/__WebViewActivity_${i}"
+        dependsOn(generateWebViewActivities)
+        mustRunAfter(i == 0 ? [] : tasks.getByName("createWebViewclass${i-1}"))
+
+        filter { String line ->
+            line.replaceAll("WebViewActivity", "__WebViewActivity_${i}")
+        }
+
+        rename { String fileName ->
+            fileName.replace("WebViewActivity.java", "__WebViewActivity_${i}.java")
+        }
+    }
+
+    preBuild.dependsOn(trTask)
+}
